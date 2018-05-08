@@ -21,17 +21,6 @@ type UploadError struct {
 	Success bool   `json:"success"`
 }
 
-func main() {
-	// file, err := os.Create("./result")
-	// if err != nil {
-	// 	panic(err)
-	// }
-	log.Printf("Server started on 0.0.0.0:18080, use /upload for uploading files. Max file size %d", maxUploadSize)
-	http.HandleFunc("/upload", uploadHandler())
-	log.Fatal(http.ListenAndServe("0.0.0.0:18080", nil))
-
-}
-
 type UploadResult struct {
 	OrigFn string `json:"orig_fn"`
 	Fn     string `json:"fn"`
@@ -41,6 +30,13 @@ type ResultWrapper struct {
 	Code    int
 	Message string
 	File    UploadResult
+}
+
+func main() {
+	log.Printf("Server started on 0.0.0.0:18080, use /upload for uploading files. Max file size %d", maxUploadSize)
+	http.HandleFunc("/upload", uploadHandler())
+	log.Fatal(http.ListenAndServe("0.0.0.0:18080", nil))
+
 }
 
 func uploadFileHandler(r *http.Request, key string) (ResultWrapper, error) {
@@ -136,6 +132,7 @@ func uploadHandler() http.HandlerFunc {
 }
 
 func renderError(w http.ResponseWriter, message string, statusCode int) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	errdata := UploadError{message, false}
 	raw, err := json.Marshal(errdata)
@@ -143,7 +140,6 @@ func renderError(w http.ResponseWriter, message string, statusCode int) {
 		renderError(w, "INVALID_FILE", statusCode)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(raw))
 }
 
