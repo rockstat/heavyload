@@ -6,10 +6,10 @@ ENV PORT=8080
 
 EXPOSE ${PORT}
 
-WORKDIR /go/src/app
+WORKDIR /go/src/heavyload
 COPY . .
 RUN mkdir -p upload
 
 # RUN go build
 RUN go install
-CMD ["app"]
+CMD ["heavyload"]

@@ -13,32 +13,68 @@ import (
 	"path/filepath"
 )
 
-const maxUploadSize = 32 << 18
-const uploadPath = "./upload"
-const defaultAddr = ""
-const defaultPort = 8080
+type jsonHZ = map[string]interface{}
 
-var defaultWebhookURL = "http://127.0.0.1:10001/wh/upload/notify"
-
-// UploadError Type for error responces
-type UploadError struct {
-	Message string `json:"message"`
-	Success bool   `json:"success"`
+// ResponseStruct Type for error responces
+type ResponseStruct struct {
+	Message    string      `json:"message"`
+	NotifyResp interface{} `json:"resp"`
+	Payload    interface{} `json:"payload"`
 }
 
-type UploadResultFile struct {
+// UploadedFile holds tmp name and contains meta data
+type UploadedFile struct {
 	OrigFn string `json:"orig_fn"`
 	Fn     string `json:"fn"`
 	Size   int64  `json:"size"`
 }
-type UploadResult struct {
-	Files []UploadResultFile `json:"files"`
+
+// NotificationStruct using for webhook notification
+type NotificationStruct struct {
+	Success bool           `json:"success"`
+	Files   []UploadedFile `json:"files"`
 }
 
+// UserTextWithStatus contain user and system info
+type UserTextWithStatus struct {
+	Text       string
+	StatusCode int
+}
+
+// ResultWrapper response to uploader
 type ResultWrapper struct {
-	Code    int
-	Message string
-	File    UploadResultFile
+	ResultCode int
+	File       UploadedFile
+}
+
+const maxUploadSize = 32 << 18 // ~ 4mb
+const uploadPath = "./upload"
+const defaultAddr = ""
+const defaultPort = 8080
+
+const contentType = "Content-Type"
+const typeJson = "application/json"
+
+const defaultWebhookURL = "http://127.0.0.1:10001/wh/upload/notify"
+
+const (
+	resultOk    = 1
+	invalidFile = 4001
+	tooBig      = 4002
+	noFiles     = 4003
+	writeErr    = 5001
+	encodeErr   = 5002
+	notifyErr   = 5003
+)
+
+var resultText = map[int]UserTextWithStatus{
+	resultOk:    UserTextWithStatus{"OK", http.StatusOK},
+	invalidFile: UserTextWithStatus{"INVALID_FILE", http.StatusBadRequest},
+	writeErr:    UserTextWithStatus{"CANT_WRITE_FILE", http.StatusInternalServerError},
+	tooBig:      UserTextWithStatus{"FILE_SIZE_EXCEED", http.StatusBadRequest},
+	noFiles:     UserTextWithStatus{"NO_FILES", http.StatusBadRequest},
+	encodeErr:   UserTextWithStatus{"ENCODE_NOTIFICATION_ERROR", http.StatusInternalServerError},
+	notifyErr:   UserTextWithStatus{"NOTIFICATION_ERROR", http.StatusInternalServerError},
 }
 
 func main() {
@@ -69,13 +105,13 @@ func uploadFileHandler(r *http.Request, key string) (ResultWrapper, error) {
 	file, header, err := r.FormFile(key)
 	origFn := header.Filename
 	if err != nil {
-		return ResultWrapper{http.StatusBadRequest, "INVALID_FILE", UploadResultFile{}}, err
+		return ResultWrapper{invalidFile, UploadedFile{}}, err
 	}
 
 	defer file.Close()
 	fileBytes, err := ioutil.ReadAll(file)
 	if err != nil {
-		return ResultWrapper{http.StatusBadRequest, "INVALID_FILE", UploadResultFile{}}, err
+		return ResultWrapper{invalidFile, UploadedFile{}}, err
 	}
 
 	fileName := randToken(12)
@@ -85,66 +121,82 @@ func uploadFileHandler(r *http.Request, key string) (ResultWrapper, error) {
 	// write file
 	newFile, err := os.Create(newPath)
 	if err != nil {
-		return ResultWrapper{http.StatusInternalServerError, "CANT_WRITE_FILE", UploadResultFile{}}, err
+		return ResultWrapper{writeErr, UploadedFile{}}, err
 	}
 	defer newFile.Close()
 	if _, err := newFile.Write(fileBytes); err != nil {
-		return ResultWrapper{http.StatusInternalServerError, "CANT_WRITE_FILE", UploadResultFile{}}, err
+		return ResultWrapper{writeErr, UploadedFile{}}, err
 	}
-	return ResultWrapper{http.StatusOK, "OK", UploadResultFile{origFn, fileName, header.Size}}, nil
-
+	return ResultWrapper{resultOk, UploadedFile{origFn, fileName, header.Size}}, nil
 }
 
 func uploadHandler(whURL string) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// validate file size
-		r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
-		if err := r.ParseMultipartForm(maxUploadSize); err != nil {
-			renderError(w, "FILE_SIZE_EXCEED", http.StatusBadRequest)
+
+		http.MaxBytesReader(w, r.Body, maxUploadSize)
+		// r.Body = ioutil.NopCloser(io.LimitReader(r.Body, maxUploadSize))
+		log.Print("attached max bytes reader. parsing multipart")
+		if err := r.ParseMultipartForm(32 << 19); err != nil {
+			log.Print("err catched")
+			jsonResponse(w, tooBig, nil, nil)
 			log.Println(err)
 			return
 		}
+		log.Print("err catched")
+		if r.MultipartForm == nil || r.MultipartForm.File == nil {
+			jsonResponse(w, noFiles, nil, nil)
+			return
+		}
 
-		//if r.MultipartForm != nil && r.MultipartForm.File != nil {
-
-		// var files map[int]UploadResultFile
-		// files = make(map[int]UploadResultFile)
-
-		list := make([]UploadResultFile, 0, len(r.MultipartForm.File))
+		list := make([]UploadedFile, 0, len(r.MultipartForm.File))
 
 		for k := range r.MultipartForm.File {
 			result, err := uploadFileHandler(r, k)
 			if err != nil {
 				log.Print("error:", err)
-				renderError(w, result.Message, result.Code)
+				jsonResponse(w, result.ResultCode, nil, nil)
 				return
 			}
 			list = append(list, result.File)
 		}
 
-		res := UploadResult{list}
-		log.Print(res)
-		encdata, err := json.Marshal(res)
+		notifyPayl := NotificationStruct{true, list}
+		encdata, err := json.Marshal(notifyPayl)
 		if err != nil {
 			log.Print(err)
-			renderError(w, "Server error", http.StatusInternalServerError)
+			jsonResponse(w, encodeErr, nil, nil)
 			return
 		}
-		sendWebhook(whURL, encdata)
 
-		w.Write([]byte("SUCCESS"))
+		body, err := sendWebhook(whURL, encdata)
+		if err != nil {
+			log.Print("webhook err", err)
+			jsonResponse(w, notifyErr, nil, nil)
+			return
+		}
 
+		var notifyResp jsonHZ
+		err = json.Unmarshal(body, &notifyResp)
+		if err != nil {
+			log.Print("wh rest unmarshall", err)
+			jsonResponse(w, notifyErr, nil, nil)
+			return
+		}
+		jsonResponse(w, resultOk, &notifyResp, &notifyPayl)
 	})
 }
 
-func renderError(w http.ResponseWriter, message string, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	errdata := UploadError{message, false}
-	raw, err := json.Marshal(errdata)
+func jsonResponse(w http.ResponseWriter, resultCode int, notifyResp *jsonHZ, notifyPayl *NotificationStruct) {
+	log.Print("called jsonResp", resultCode, notifyResp, notifyPayl)
+
+	w.Header().Set(contentType, typeJson)
+	w.WriteHeader(resultText[resultCode].StatusCode)
+
+	resp := ResponseStruct{resultText[resultCode].Text, notifyResp, notifyPayl}
+	raw, err := json.Marshal(resp)
 	if err != nil {
-		renderError(w, "INVALID_FILE", statusCode)
-		return
+		raw = []byte("\"json encode error\"")
 	}
 	w.Write([]byte(raw))
 }
@@ -155,7 +207,7 @@ func randToken(len int) string {
 	return fmt.Sprintf("%x", b)
 }
 
-func sendWebhook(url string, data []byte) {
+func sendWebhook(url string, data []byte) ([]byte, error) {
 	fmt.Println("URL:>", url)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
@@ -164,12 +216,16 @@ func sendWebhook(url string, data []byte) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
 
-	fmt.Println("response Status:", resp.Status)
-	// fmt.Println("response Headers:", resp.Header)
-	// body, _ := ioutil.ReadAll(resp.Body)
-	// fmt.Println("response Body:", string(body))
+	if resp.StatusCode != 200 {
+		fmt.Println("response Status:", resp.Status)
+		fmt.Println("response Headers:", resp.Header)
+		fmt.Println("response Body:", string(body))
+	}
+
+	return body, nil
 }
