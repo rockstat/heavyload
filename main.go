@@ -229,3 +229,8 @@ func sendWebhook(url string, data []byte) ([]byte, error) {
 
 	return body, nil
 }
+
+// https://stackoverflow.com/questions/28073395/limiting-file-size-in-formfile
+// https://github.com/golang/go/issues/23165
+// https://stackoverflow.com/questions/28282370/is-it-advisable-to-further-limit-the-size-of-forms-when-using-golang/28292505#28292505
+// https://godoc.org/github.com/gin-gonic/gin
