@@ -16,7 +16,8 @@ Start container with port mapping
     docker run -d \
         --name=heavyload --hostname=heavyload \
         --restart=unless-stopped \
-        -p 127.0.0.1:8095:8080 \
+        --network=custom \
+        -p 127.0.0.1:10010:8080 \
         -e WEBHOOK=http://host.docker.internal:10001/wh/upload/notify \
         rst/heavyload
 
