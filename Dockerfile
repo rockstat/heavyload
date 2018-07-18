@@ -6,6 +6,8 @@ ENV PORT=8080
 
 EXPOSE ${PORT}
 
+#cachebust
+ARG RELEASE=master
 WORKDIR /go/src/heavyload
 COPY . .
 RUN mkdir -p upload
