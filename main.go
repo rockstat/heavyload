@@ -53,9 +53,9 @@ const defaultAddr = ""
 const defaultPort = 8080
 
 const contentType = "Content-Type"
-const typeJson = "application/json"
+const typeJSON = "application/json"
 
-const defaultWebhookURL = "http://127.0.0.1:10001/wh/upload/notify"
+const defaultWebhookURL = ""
 
 const (
 	resultOk    = 1
@@ -169,20 +169,23 @@ func uploadHandler(whURL string) http.HandlerFunc {
 			return
 		}
 
-		body, err := sendWebhook(whURL, encdata)
-		if err != nil {
-			log.Print("webhook err", err)
-			jsonResponse(w, notifyErr, nil, nil)
-			return
+		var notifyResp jsonHZ
+		if whURL != "" {
+			body, err := sendWebhook(whURL, encdata)
+			if err != nil {
+				log.Print("webhook err", err)
+				jsonResponse(w, notifyErr, nil, nil)
+				return
+			}
+
+			err = json.Unmarshal(body, &notifyResp)
+			if err != nil {
+				log.Print("wh rest unmarshall", err)
+				jsonResponse(w, notifyErr, nil, nil)
+				return
+			}
 		}
 
-		var notifyResp jsonHZ
-		err = json.Unmarshal(body, &notifyResp)
-		if err != nil {
-			log.Print("wh rest unmarshall", err)
-			jsonResponse(w, notifyErr, nil, nil)
-			return
-		}
 		jsonResponse(w, resultOk, &notifyResp, &notifyPayl)
 	})
 }
@@ -190,7 +193,7 @@ func uploadHandler(whURL string) http.HandlerFunc {
 func jsonResponse(w http.ResponseWriter, resultCode int, notifyResp *jsonHZ, notifyPayl *NotificationStruct) {
 	log.Print("called jsonResp", resultCode, notifyResp, notifyPayl)
 
-	w.Header().Set(contentType, typeJson)
+	w.Header().Set(contentType, typeJSON)
 	w.WriteHeader(resultText[resultCode].StatusCode)
 
 	resp := ResponseStruct{resultText[resultCode].Text, notifyResp, notifyPayl}
