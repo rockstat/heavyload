@@ -1,1 +1,1 @@
-http --form https://bolt.rstat.org/upload upl@small.jpg
+http --form https://bolt.rstat.org/upload upl@4mb.png
