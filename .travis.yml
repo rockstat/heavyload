@@ -1,0 +1,28 @@
+sudo: required
+dist: trusty
+
+env:
+  global:
+    - PROJECT_NAME=heavyload
+    - ORG=rockstat
+    - IMAGE_NAME=$ORG/$PROJECT_NAME
+
+services:
+- docker
+
+script:
+- docker build -t $PROJECT_NAME .
+
+after_script:
+- docker images
+
+before_deploy:
+- docker tag $PROJECT_NAME $IMAGE_NAME
+- docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+
+deploy:
+  provider: script
+  skip_cleanup: true
+  script: docker push "$IMAGE_NAME"
+  on:
+    branch: master
