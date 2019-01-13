@@ -69,7 +69,7 @@ type FileInfo struct {
 }
 
 func sendWebhook(url string, data []byte) ([]byte, error) {
-	fmt.Println("URL:>", url)
+	log.Print("URL:>", url)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
 	if err != nil {
@@ -86,7 +86,7 @@ func sendWebhook(url string, data []byte) ([]byte, error) {
 	body, _ := ioutil.ReadAll(resp.Body)
 
 	if resp.StatusCode != 200 {
-		fmt.Printf("RESPONSE: status:%s\nheaders:%s\nbody:%s\n", resp.Status, resp.Header, string(body))
+		log.Printf("RESPONSE: status:%s\nheaders:%s\nbody:%s\n", resp.Status, resp.Header, string(body))
 	}
 
 	return body, nil
