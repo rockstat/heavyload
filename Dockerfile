@@ -3,7 +3,7 @@ LABEL maintainer="Dmitry Rodin <madiedinro@gmail.com>"
 
 ENV HOST=0.0.0.0
 ENV PORT=8080
-
+ENV GIN_MODE=release
 EXPOSE ${PORT}
 
 #cachebust

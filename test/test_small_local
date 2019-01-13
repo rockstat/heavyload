@@ -1,1 +1,0 @@
-http --form http://127.0.0.1:10010/upload upl@small.jpg

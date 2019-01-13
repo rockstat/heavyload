@@ -18,7 +18,7 @@ Start container with port mapping
         --restart=unless-stopped \
         --network=custom \
         -p 127.0.0.1:10010:8080 \
-        -e WEBHOOK=http://host.docker.internal:10001/wh/upload/notify \
+        -e WEBHOOK=http://host.docker.internal:10001/wh/upload/mysrv/actionname \
         rst/heavyload
 
 
@@ -27,31 +27,38 @@ Start container with port mapping
 Contains webhook notifiction payload and response
 Test using `httpie`
 
-    http --form http://127.0.0.1:18080/upload upload@test.jpg
+```shell
+http --form http://127.0.0.1:18080/upload/mysrv/actionname upload@test.jpg
+```
+
 
 will return 
 
-    HTTP/1.1 200 OK
-    Content-Length: 188
-    Content-Type: application/json
-    Date: Tue, 08 May 2018 23:41:01 GMT
+```
+HTTP/1.1 200 OK
+Content-Length: 188
+Content-Type: application/json
+Date: Tue, 08 May 2018 23:41:01 GMT
+```
 
-    {
-        "message": "OK",
-        "payload": {
-            "files": [
-                {
-                    "fn": "7e27a3d38927ea06b6979655",
-                    "orig_fn": "test.jpg",
-                    "size": 91141
-                }
-            ],
-            "success": true
-        },
-        "resp": {
-            "id": "6399764926386143233",
-            "key": "in.indep.upload.notify"
+```json
+{
+    "files": [
+        {
+            "name": "100stripusers.log",
+            "param": "log",
+            "size": 43762756,
+            "tempName": "6b708b18-3e86-437f-bcdf-321a9f771e45"
         }
-    }
+    ],
+    "name": "callme",
+    "query": {},
+    "service": "srv"
+}
+```
 
+### Deps
 
+```
+govendor fetch github.com/gin-gonic/gin
+```
