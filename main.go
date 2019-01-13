@@ -117,7 +117,8 @@ func main() {
 	}
 
 	listen := fmt.Sprintf("%s:%d", *bindAddr, *bindPort)
-	log.Printf("Webhook to %s", webhookURL)
+	log.Printf("Listening: %s", listen)
+	log.Printf("Webhook: %s", webhookURL)
 
 	r := gin.Default()
 	r.MaxMultipartMemory = 8 << 22 // 32 MiB
@@ -129,20 +130,31 @@ func main() {
 		for key := range q {
 			query[key] = q.Get(key)
 		}
-		form, _ := c.MultipartForm()
-
+		form, err := c.MultipartForm()
+		if err != nil {
+			log.Printf("[ERROR] MultipartForm %v", err)
+			return
+		}
 		files := []FileInfo{}
 		// Handling query params
 		for propName, propList := range form.File {
 			for _, file := range propList {
 				u4, err := uuid.NewV4()
 				if err != nil {
-					log.Printf("[ERROR] make request %v", err)
+					log.Printf("[ERROR] uuid.NewV4 %v", err)
 					continue
 				}
 				tempName, _ := u4.MarshalText()
+				if err != nil {
+					log.Printf("[ERROR] u4.MarshalText %v", err)
+					continue
+				}
 				dest := filepath.Join(uploadPath, string(tempName))
-				c.SaveUploadedFile(file, dest)
+				err = c.SaveUploadedFile(file, dest)
+				if err != nil {
+					log.Printf("[ERROR] SaveUploadedFile %v", err)
+					continue
+				}
 				files = append(files, FileInfo{propName, file.Filename, file.Size, string(tempName)})
 			}
 		}
@@ -155,7 +167,7 @@ func main() {
 		}
 		raw, err := json.Marshal(data)
 		if err != nil {
-			log.Printf("[ERROR] make request %v", err)
+			log.Printf("[ERROR] json.Marshal %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprint(err)})
 			return
 		}
@@ -163,14 +175,14 @@ func main() {
 		var buf bytes.Buffer
 		err = webhookTemplate.Execute(&buf, data)
 		if err != nil {
-			log.Printf("[ERROR] make request %v", err)
+			log.Printf("[ERROR]webhookTemplate.Execute %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprint(err)})
 		}
 
 		url := buf.String()
 		_, err = sendWebhook(url, raw)
 		if err != nil {
-			log.Printf("[ERROR] make request %v", err)
+			log.Printf("[ERROR] sendWebhook %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprint(err)})
 			return
 		}
