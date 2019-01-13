@@ -72,6 +72,9 @@ func sendWebhook(url string, data []byte) ([]byte, error) {
 	fmt.Println("URL:>", url)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
@@ -134,7 +137,8 @@ func main() {
 			for _, file := range propList {
 				u4, err := uuid.NewV4()
 				if err != nil {
-					fmt.Printf("Error: %s\n", err)
+					log.Printf("[ERROR] make request %v", err)
+					continue
 				}
 				tempName, _ := u4.MarshalText()
 				dest := filepath.Join(uploadPath, string(tempName))
@@ -151,6 +155,7 @@ func main() {
 		}
 		raw, err := json.Marshal(data)
 		if err != nil {
+			log.Printf("[ERROR] make request %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprint(err)})
 			return
 		}
@@ -158,12 +163,14 @@ func main() {
 		var buf bytes.Buffer
 		err = webhookTemplate.Execute(&buf, data)
 		if err != nil {
+			log.Printf("[ERROR] make request %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprint(err)})
 		}
 
 		url := buf.String()
 		_, err = sendWebhook(url, raw)
 		if err != nil {
+			log.Printf("[ERROR] make request %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprint(err)})
 			return
 		}
