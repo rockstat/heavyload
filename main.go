@@ -6,7 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -83,7 +83,7 @@ func sendWebhook(url string, data []byte) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != 200 {
 		log.Printf("RESPONSE: status:%s\nheaders:%s\nbody:%s\n", resp.Status, resp.Header, string(body))
@@ -139,11 +139,11 @@ func main() {
 		// Handling query params
 		for propName, propList := range form.File {
 			for _, file := range propList {
-				u4, err := uuid.NewV4()
-				if err != nil {
-					log.Printf("[ERROR] uuid.NewV4 %v", err)
-					continue
-				}
+				u4 := uuid.NewV4()
+				// if err != nil {
+				// 	log.Printf("[ERROR] uuid.NewV4 %v", err)
+				// 	continue
+				// }
 				tempName, _ := u4.MarshalText()
 				if err != nil {
 					log.Printf("[ERROR] u4.MarshalText %v", err)
