@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"strconv"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,9 +12,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	uuid "github.com/satori/go.uuid"
+	// uuid "github.com/satori/go.uuid"
+
+
+	"crypto/rand"
+	"encoding/hex"
 )
 
 type jsonHZ = map[string]interface{}
@@ -67,6 +73,7 @@ type FileInfo struct {
 	Size     int64  `json:"size"`
 	TempName string `json:"tempName"`
 }
+
 
 func sendWebhook(url string, data []byte) ([]byte, error) {
 	log.Print("URL:>", url)
@@ -124,47 +131,57 @@ func main() {
 	r.MaxMultipartMemory = 8 << 22 // 32 MiB
 	r.POST("/upload/:service/:name", func(c *gin.Context) {
 
-		query := make(map[string]string)
-		// Handling query params
-		q := c.Request.URL.Query()
-		for key := range q {
-			query[key] = q.Get(key)
-		}
 		form, err := c.MultipartForm()
 		if err != nil {
 			log.Printf("[ERROR] MultipartForm %v", err)
 			return
 		}
+		
 		files := []FileInfo{}
+
+
+
 		// Handling query params
 		for propName, propList := range form.File {
 			for _, file := range propList {
-				u4 := uuid.NewV4()
-				// if err != nil {
-				// 	log.Printf("[ERROR] uuid.NewV4 %v", err)
-				// 	continue
-				// }
-				tempName, _ := u4.MarshalText()
+				sec := time.Now().Unix()
+
+	 	  		randBytes := make([]byte, 16)
+				rand.Read(randBytes)
+				tmpname := filepath.Join(strconv.Itoa(int(sec)) + "-" + hex.EncodeToString(randBytes))
+
+				// u4 := uuid.NewV4()
+				// tmpname, _ := u4.MarshalText()
 				if err != nil {
 					log.Printf("[ERROR] u4.MarshalText %v", err)
 					continue
 				}
-				dest := filepath.Join(uploadPath, string(tempName))
+				dest := filepath.Join(uploadPath, string(tmpname))
 				err = c.SaveUploadedFile(file, dest)
 				if err != nil {
 					log.Printf("[ERROR] SaveUploadedFile %v", err)
 					continue
 				}
-				files = append(files, FileInfo{propName, file.Filename, file.Size, string(tempName)})
+				files = append(files, FileInfo{propName, file.Filename, file.Size, string(tmpname)})
 			}
 		}
+
+
+		// query := make(map[string]string)
+		// Handling query params
 
 		data := gin.H{
 			"service": c.Param("service"),
 			"name":    c.Param("name"),
-			"query":   query,
+			// "query":   query,
 			"files":   files,
 		}
+		
+		q := c.Request.URL.Query()
+		for key := range q {
+			data[key] = q.Get(key)
+		}
+		
 		raw, err := json.Marshal(data)
 		if err != nil {
 			log.Printf("[ERROR] json.Marshal %v", err)
