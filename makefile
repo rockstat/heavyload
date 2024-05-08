@@ -44,3 +44,8 @@ push-latest:
 
 build_image:
 	docker build -t $(NAME) .
+
+
+build_amd64:
+	docker buildx build --platform linux/amd64 -t $(NAME) .
+
