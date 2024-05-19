@@ -13,7 +13,7 @@ LOCATION := /go/src/heavyload
 # 		--hostname heavyload-dev \
 # 		heavyload-dev
 
-# run:
+run:
 	docker run --rm -it \
 		-v $$PWD:$(LOCATION) \
 		-p 10010:8080 \

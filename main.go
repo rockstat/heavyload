@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"strconv"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -12,11 +11,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	// uuid "github.com/satori/go.uuid"
-
 
 	"crypto/rand"
 	"encoding/hex"
@@ -56,7 +55,7 @@ type ResultWrapper struct {
 	File       UploadedFile
 }
 
-const maxUploadSize = 32 << 18 // ~ 4mb
+const maxUploadSize = 32 << 24 // ~ 500mb
 const uploadPath = "./upload"
 const defaultAddr = ""
 const defaultPort = 8080
@@ -73,7 +72,6 @@ type FileInfo struct {
 	Size     int64  `json:"size"`
 	TempName string `json:"tempName"`
 }
-
 
 func sendWebhook(url string, data []byte) ([]byte, error) {
 	log.Print("URL:>", url)
@@ -136,17 +134,15 @@ func main() {
 			log.Printf("[ERROR] MultipartForm %v", err)
 			return
 		}
-		
+
 		files := []FileInfo{}
-
-
 
 		// Handling query params
 		for propName, propList := range form.File {
 			for _, file := range propList {
 				sec := time.Now().Unix()
 
-	 	  		randBytes := make([]byte, 16)
+				randBytes := make([]byte, 16)
 				rand.Read(randBytes)
 				tmpname := filepath.Join(strconv.Itoa(int(sec)) + "-" + hex.EncodeToString(randBytes))
 
@@ -166,7 +162,6 @@ func main() {
 			}
 		}
 
-
 		// query := make(map[string]string)
 		// Handling query params
 
@@ -174,14 +169,14 @@ func main() {
 			"service": c.Param("service"),
 			"name":    c.Param("name"),
 			// "query":   query,
-			"files":   files,
+			"files": files,
 		}
-		
+
 		q := c.Request.URL.Query()
 		for key := range q {
 			data[key] = q.Get(key)
 		}
-		
+
 		raw, err := json.Marshal(data)
 		if err != nil {
 			log.Printf("[ERROR] json.Marshal %v", err)
